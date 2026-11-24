@@ -322,6 +322,10 @@ function readSearchReplace(lines: string[]): EditFn[] {
     if (s < 0) break;
     let mid = -1;
     for (let k = s + 1; k < lines.length; k++) {
+      // Meeting >>>>>>> REPLACE while looking for ======= is section 7's parse
+      // error: a SEARCH line with no ======= and then >>>>>>> REPLACE after it.
+      // The block must not reach past it for a later block's =======.
+      if (lines[k]!.trimEnd() === SR_END) throw new ExitLine(`error: parse ${s + 1}`);
       if (lines[k]!.trimEnd() === SR_MID) {
         mid = k;
         break;
@@ -607,7 +611,10 @@ function v4aUpdate(path: string, secLine: number, raw: Array<{ text: string; no:
   let started = false;
   for (const r of body) {
     const l = r.text;
-    if (!started && l === '') continue; // spacing before the section's first line
+    // No line of the section is skipped: an empty line is a body line (an empty
+    // context line), even as the section's first line, and *** Move to: counts
+    // only as the literal first line (section 8; contrast Begin Patch, whose
+    // first line is the first NON-BLANK one).
     if (!started && l.startsWith('*** Move to: ')) {
       moveTo = l.slice('*** Move to: '.length).trim();
       started = true;
