@@ -96,7 +96,34 @@ class Tree {
     return this.now.has(p) ? this.now.get(p)! : this.before(p);
   }
   put(p: string, v: string | null): void {
+    if (v !== null) this.guardCreatable(p);
     this.now.set(p, v);
+  }
+
+  /**
+   * A file the edits make has to be one the tree can hold and the disk can
+   * write. It cannot stand under a path the tree already holds as a file, nor
+   * where a directory stands on disk, nor under a name longer than the
+   * filesystem allows a single name to be: the write at the end would throw
+   * on such a path, after the files before it were already written, and the
+   * run would end in a crash instead of a report. The edit fails instead,
+   * like any other failed edit, and nothing is written.
+   */
+  private guardCreatable(p: string): void {
+    const parts = p.split('/');
+    for (let i = 1; i < parts.length; i++) {
+      if (this.get(parts.slice(0, i).join('/')) !== null) throw new EditFault('exists', p);
+    }
+    for (const seg of parts) {
+      if (Buffer.byteLength(seg, 'utf8') > 255) throw new EditFault('unsafe', p);
+    }
+    let isDir = false;
+    try {
+      isDir = statSync(p).isDirectory();
+    } catch {
+      isDir = false;
+    }
+    if (isDir && this.get(p) === null) throw new EditFault('exists', p);
   }
 }
 
